@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +46,6 @@ import com.snothin.ghostsam.data.device.DeviceSnapshot
 import com.snothin.ghostsam.data.channel.SelinuxState
 import com.snothin.ghostsam.data.device.SeriesMatch
 import com.snothin.ghostsam.data.device.SeriesTable
-import com.snothin.ghostsam.data.prefs.SettingsPrefs
 import com.snothin.ghostsam.ui.theme.KsudCardBlue
 import com.snothin.ghostsam.ui.theme.NatsumeGray
 import com.snothin.ghostsam.ui.theme.StatusColors
@@ -86,7 +84,7 @@ private data class SummonStatusUi(
 
 @Composable
 private fun ksuManagerLabel(): String =
-    SettingsPrefs.effectiveKsudVariant(LocalContext.current).label
+    "MidoriSU"
 
 @Composable
 private fun summonStatusUi(
@@ -256,7 +254,6 @@ internal fun SummonStatusCard(
     disconnectedDetailRes: Int,
     disconnectedDetailOverride: String? = null,
     standaloneRoute: Boolean = false,
-    nextVariant: Boolean = false,
     onClick: () -> Unit,
 ) {
     val isDark = isInDarkTheme()
@@ -346,22 +343,6 @@ internal fun SummonStatusCard(
                         fontWeight = FontWeight.Medium,
                         color = ui.colors.content.copy(alpha = 0.8f),
                     )
-                }
-            } else if (standaloneRoute || status == SummonStatus.Standalone) {
-                if (nextVariant) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp, 10.dp),
-                        contentAlignment = Alignment.BottomStart,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.home_status_next_spoofed_hint),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = ui.colors.content.copy(alpha = 0.8f),
-                        )
-                    }
                 }
             } else if (!(status == SummonStatus.Ready && ksuActive)) {
                 Box(

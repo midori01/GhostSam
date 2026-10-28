@@ -15,12 +15,12 @@ the app that packages the prebuilt payloads.
 - **Target devices**: Galaxy S22 (`s22`), Galaxy S26 (`s26`) and Galaxy
   Z Fold8 (`zf8`), on Snapdragon and Exynos SoCs.
 - **Install paths**:
-  - **dirtyfrag (recommended, faster)**: a single run deploys the KernelSU
+  - **dirtyfrag (recommended, faster)**: a single run deploys the MidoriSU
     kernel module (page-cache 4-byte store via xfrm-ESP, CVE-2026-43284)
     and late-loads it directly; there is no race to win.
   - **Ghostlock chains**: race-based exploits for the selected series; the
     device reboots during the run, after which the app completes the
-    KernelSU late-load.
+    MidoriSU late-load.
 - **Memory-corruption primitive (CVE-2026-43499)**: a futex PI use-after-free
   race is turned into a single controlled 8-byte kernel write; a `misc` /
   `simple_attr` file descriptor serves as the write target, from which
@@ -32,7 +32,7 @@ the app that packages the prebuilt payloads.
   modified, and KDP's EL2 guard sees nothing.
 - **Root channel**: `su_daemon` keeps a root shell on
   `/data/local/tmp/temp_su.sock` for the session.
-- **Persistence (temporary root)**: KernelSU or KernelSU-Next is
+- **Persistence (temporary root)**: MidoriSU is
   late-loaded; root is kept until the next reboot (re-run the chain to
   re-apply). In the Ghostlock chains the `ksud` binary is bind-mounted over
   a dormant system binary, so path-based DEFEX rules only ever see a
@@ -105,9 +105,15 @@ cd app
 ./gradlew assembleRelease
 ```
 
+`.github/workflows/build-app.yml` builds a debug APK on GitHub Actions. It
+downloads the latest successful MidoriSU Action `ksud` plus the KOWSU LKM family, rebuilds GhostSam's native payloads and DirtyFrag LKMs, and uploads the APK.
+The `MIDORISU_TOKEN` Actions secret is required with read access to MidoriSU
+Actions artifacts. GhostSam's built-in token cannot download them across repositories.
+A successful build publishes only the APK to the GitHub Release; build inputs and LKMs remain available as Actions artifacts.
+
 The `:app:verifyPayloads` Gradle task validates the payload set during the
 build: each series folder must provide `preload.so` and `su_daemon`,
-`payloads/ksud/` must provide `ksud` and `ksud-next`, and
+`payloads/ksud/` must provide the MidoriSU `ksud`, and
 `payloads/dirtyfrag/` must provide `dfr_payload` plus one
 `dfr_lkm-<kmi>.ko` for every supported KMI.
 
@@ -132,13 +138,12 @@ directory; Android DDK containers provide one per KMI:
 make lkm KDIR=/path/to/kernel-build-dir
 ```
 
-### ksud binaries
+### MidoriSU inputs
 
-`payloads/ksud/ksud` and `payloads/ksud/ksud-next` are prebuilt release
-builds (aarch64-linux-android) from our KernelSU forks,
-[snothin/KernelSU](https://github.com/snothin/KernelSU) and
-[snothin/KernelSU-Next](https://github.com/snothin/KernelSU-Next); rebuild
-them from those repositories when bumping the version.
+`payloads/ksud/ksud` comes from the latest successful
+[MidoriSU build](https://github.com/midori01/KernelSU/actions/workflows/build-manager.yml).
+GhostSam uses only the KOWSU (`<kmi>_kernelsu.ko`) LKM family. The workflow downloads and validates
+the eight KMI variants from the staged KOWSU artifacts.
 
 ## Usage
 
@@ -146,10 +151,10 @@ them from those repositories when bumping the version.
 2. Enable USB debugging and connect over ADB.
 3. In the app, pick the install path:
    - **dirtyfrag (recommended)**: a single run - the chain deploys and
-     late-loads the KernelSU module directly.
+     late-loads the MidoriSU module directly.
    - **Ghostlock chains**: the race-based exploit for the selected series;
      the device reboots during the run, and the app then performs the
-     KernelSU late-load.
+     MidoriSU late-load.
 
 ## Runtime options
 
@@ -166,7 +171,7 @@ minimal implementation of the public DirtyFrag technique. GhostSam
 integrates the earlier work (the Ghostlock exploit chains for S22 / S26 /
 Z Fold8) into one toolkit, so the project is larger and more involved
 overall - yet its dirtyfrag path is still fast: a single run deploys and
-late-loads KernelSU. Give it a try; feedback, issues and PRs are welcome.
+late-loads MidoriSU. Give it a try; feedback, issues and PRs are welcome.
 
 Both implementations build on the same public technique; see
 [NOTICE](NOTICE) for the provenance statement.
@@ -185,10 +190,9 @@ complying with applicable law.
 - **s26 series** - merged from [ghostlock-s26](https://github.com/snothin/ghostlock-s26);
   its README carries the full credit list.
 - **Z Fold8 transplant input (io_submit primer)** - from @diabl0w.
-- **ksud / ksud-next** - built from [snothin/KernelSU](https://github.com/snothin/KernelSU)
-  and [snothin/KernelSU-Next](https://github.com/snothin/KernelSU-Next), forks that
-  track upstream and incorporate work from multiple developers in the KernelSU
-  community.
+- **MidoriSU / ksud** - maintained at
+  [midori01/KernelSU](https://github.com/midori01/KernelSU); GhostSam uses
+  the KOWSU LKM family.
 - **dirtyfrag chain** - follows the public DirtyFrag technique; the provenance
   statement is in [NOTICE](NOTICE).
 

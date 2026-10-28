@@ -15,10 +15,10 @@
   （`zf8`），覆盖 Snapdragon 与 Exynos 平台。
 - **安装路径**：
   - **dirtyfrag（推荐，更快）**：单次运行即完成——经由 xfrm-ESP 页缓存
-    4 字节写（CVE-2026-43284）部署 KernelSU 内核模块并直接 late-load，无需
+    4 字节写（CVE-2026-43284）部署 MidoriSU 内核模块并直接 late-load，无需
     赢下竞争。
   - **Ghostlock 链**：面向所选系列的竞争性利用；运行过程中设备会重启，之后
-    由 App 完成 KernelSU late-load。
+    由 App 完成 MidoriSU late-load。
 - **内存破坏原语（CVE-2026-43499）**：把一个 futex PI 释放后使用（UAF）竞争
   转化为一次受控的 8 字节内核写；以 `misc` / `simple_attr` 文件描述符作为写
   载体，进而构建任意内核读写。Z Fold8 链使用基于 `io_submit` 的写路径。
@@ -27,7 +27,7 @@
   不修改凭证结构体，KDP 的 EL2 守卫无从触发。
 - **root 通道**：`su_daemon` 在 `/data/local/tmp/temp_su.sock` 上维持一个
   root shell，贯穿整个会话。
-- **持久化（临时 root）**：late-load KernelSU 或 KernelSU-Next，root 保持到
+- **持久化（临时 root）**：late-load MidoriSU，root 保持到
   下次重启为止（重启后重新跑链即可恢复）；Ghostlock 链中 `ksud` 以 bind
   mount 覆盖一个休眠的系统二进制，使基于路径的 DEFEX 规则看到的始终是白
   名单目标。
@@ -94,9 +94,15 @@ cd app
 ./gradlew assembleRelease
 ```
 
+`.github/workflows/build-app.yml` 会在 GitHub Actions 上构建 debug APK。工作流
+会拉取 MidoriSU 最新一次成功构建中的 `ksud` 与 KOWSU LKM，重新
+编译 GhostSam 原生 payload 与 DirtyFrag LKM，最后上传 APK。必须配置具有
+MidoriSU Actions artifact 读取权限的 `MIDORISU_TOKEN` secret。
+构建成功后会直接发布 APK 到 GitHub Release；ksud 与 LKM 仅保留在 Actions artifacts 中。
+
 Gradle 任务 `:app:verifyPayloads` 会在构建时校验 payload 集合：每个系列目录
-必须提供 `preload.so` 与 `su_daemon`，`payloads/ksud/` 必须提供 `ksud` 与
-`ksud-next`，`payloads/dirtyfrag/` 必须提供 `dfr_payload` 及每个受支持 KMI
+必须提供 `preload.so` 与 `su_daemon`，`payloads/ksud/` 必须提供 MidoriSU
+`ksud`，`payloads/dirtyfrag/` 必须提供 `dfr_payload` 及每个受支持 KMI
 对应的一个 `dfr_lkm-<kmi>.ko`。
 
 ### 原生 payload
@@ -119,23 +125,22 @@ make s26        # 或单个目标：s26 / s22 / zf8 / dirtyfrag
 make lkm KDIR=/path/to/kernel-build-dir
 ```
 
-### ksud 二进制
+### MidoriSU 构建输入
 
-`payloads/ksud/ksud` 与 `payloads/ksud/ksud-next` 是预构建的 release 版本
-（aarch64-linux-android），来自我们的 KernelSU fork：
-[snothin/KernelSU](https://github.com/snothin/KernelSU) 与
-[snothin/KernelSU-Next](https://github.com/snothin/KernelSU-Next)；版本升级
-时从这两个仓库重新构建。
+`payloads/ksud/ksud` 取自
+[MidoriSU 最新成功构建](https://github.com/midori01/KernelSU/actions/workflows/build-manager.yml)。
+GhostSam 只使用 ksud 中以纯 KMI 名称嵌入的 KOWSU（`<kmi>_kernelsu.ko`）模块；
+工作流会校验并保留 8 个 KMI 对应的 KOWSU artifact 作为构建输入。
 
 ## 使用
 
 1. 在受支持的设备上安装 APK（或按上文自行构建）。
 2. 打开 USB 调试，通过 ADB 连接。
 3. 在 App 内选择安装路径：
-   - **dirtyfrag（推荐）**：单次运行——链直接完成 KernelSU 模块的部署与
+   - **dirtyfrag（推荐）**：单次运行——链直接完成 MidoriSU 模块的部署与
      late-load。
    - **Ghostlock 链**：面向所选系列的竞争性利用；运行过程中设备会重启，
-     之后由 App 执行 KernelSU late-load。
+     之后由 App 执行 MidoriSU late-load。
 
 ## 运行期开关
 
@@ -166,9 +171,9 @@ PR。
 - **s26 系列**：合并自 [ghostlock-s26](https://github.com/snothin/ghostlock-s26)，
   其 README 载有完整致谢清单。
 - **Z Fold8 移植输入（io_submit primer）**：来自 @diabl0w。
-- **ksud / ksud-next**：构建自 [snothin/KernelSU](https://github.com/snothin/KernelSU)
-  与 [snothin/KernelSU-Next](https://github.com/snothin/KernelSU-Next)；这两个
-  fork 跟踪上游并吸收 KernelSU 社区多位开发者的成果。
+- **MidoriSU / ksud**：维护于
+  [midori01/KernelSU](https://github.com/midori01/KernelSU)；GhostSam 使用
+  KOWSU LKM。
 - **dirtyfrag 链**：沿袭公开的 DirtyFrag 技术；来源声明见 [NOTICE](NOTICE)。
 
 ## 许可

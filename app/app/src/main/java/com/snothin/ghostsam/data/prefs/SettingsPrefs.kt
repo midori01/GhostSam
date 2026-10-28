@@ -15,7 +15,6 @@ object SettingsPrefs {
     private const val USE_SHIZUKU = "use_shizuku"
     private const val EXECUTION_MODE = "execution_mode"
     private const val PAYLOAD_SCHEME = "payload_scheme"
-    private const val KSUD_VARIANT = "ksud_variant"
     private const val PIN_PROBE = "pin_probe"
     private const val SKIP_KSU = "skip_ksu"
     private const val TCP_PERSIST = "tcp_persist"
@@ -30,9 +29,7 @@ object SettingsPrefs {
 
     val payloadSchemeFlow = MutableStateFlow(PayloadScheme.Default)
 
-    val ksudVariantFlow = MutableStateFlow(KsudVariant.Default)
-
-    val pinProbeFlow = MutableStateFlow(false)
+    val pinProbeFlow = MutableStateFlow(true)
 
     const val DEFAULT_UPTIME_GATE_SECONDS = 60
     const val UPTIME_GATE_MIN_SECONDS = 60
@@ -77,26 +74,13 @@ object SettingsPrefs {
         payloadSchemeFlow.value = value
     }
 
-    fun ksudVariant(context: Context): KsudVariant =
-        KsudVariant.parse(prefs(context).getString(KSUD_VARIANT, null))
-
-    fun setKsudVariant(context: Context, value: KsudVariant) {
-        prefs(context).edit().putString(KSUD_VARIANT, value.name).apply()
-        ksudVariantFlow.value = value
-    }
-
     fun pinProbe(context: Context): Boolean =
-        prefs(context).getBoolean(PIN_PROBE, false)
+        prefs(context).getBoolean(PIN_PROBE, true)
 
     fun setPinProbe(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean(PIN_PROBE, value).apply()
         pinProbeFlow.value = value
     }
-
-/** Effective KSU variant (single resolution point): only DfrStandalone may switch; other schemes
- *  lock Default (the stored value is never rewritten). */
-    fun effectiveKsudVariant(context: Context): KsudVariant =
-        if (payloadScheme(context) == PayloadScheme.DfrStandalone) ksudVariant(context) else KsudVariant.Default
 
     fun tcpPersist(context: Context): Boolean =
         prefs(context).getBoolean(TCP_PERSIST, false)

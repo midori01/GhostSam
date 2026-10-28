@@ -168,10 +168,19 @@ val verifyPayloads by tasks.registering {
         series.forEach { (sid, _) ->
             require("$sid/preload.so")
             require("$sid/su_daemon")
+            listOf("$sid/preload.so", "$sid/su_daemon").forEach { rel ->
+                val f = payloadsDir.resolve(rel)
+                if (f.isFile && !f.readBytes().containsAscii("MIDORI_OPTS")) {
+                    problems += "$rel: stale payload (missing MidoriSU option handoff)"
+                }
+            }
+            val helper = payloadsDir.resolve("$sid/su_daemon")
+            if (helper.isFile && !helper.readBytes().containsAscii("com.midori.supermanager")) {
+                problems += "$sid/su_daemon: stale payload (missing MidoriSU manager package)"
+            }
         }
         require("ksud/ksud")
-        require("ksud/ksud-next")
-        listOf("ksud/ksud", "ksud/ksud-next").forEach { rel ->
+        listOf("ksud/ksud").forEach { rel ->
             val f = payloadsDir.resolve(rel)
             if (f.isFile && f.length() >= 4) {
                 val magic = f.inputStream().use { input -> ByteArray(4).also { input.read(it) } }
@@ -190,6 +199,7 @@ val verifyPayloads by tasks.registering {
         dfrKos.forEach { ko ->
             expected += "dirtyfrag/${ko.name}"
             if (ko.length() == 0L) problems += "empty file: dirtyfrag/${ko.name}"
+            if (ko.length() > 65536L) problems += "oversized LKM: dirtyfrag/${ko.name} (strip debug sections before staging)"
         }
 
         payloadsDir.walkTopDown().filter { it.isFile }.forEach { f ->
@@ -200,9 +210,7 @@ val verifyPayloads by tasks.registering {
         if (problems.isNotEmpty()) {
             throw GradleException(
                 "verifyPayloads failed (${problems.size} issues):\n  - " + problems.joinToString("\n  - ") +
-                    "\n  hint: preload/su_daemon come from the chain build/pack.sh; ksud from the KernelSU repo (build-kernelsu.sh)," +
-                    "ksud-next from the KernelSU-Next workspace (KernelSU-Next-snothin/out/)," +
-                    "strip the assets after staging.",
+                    "\n  hint: preload/su_daemon come from the chain build/pack.sh; use the latest MidoriSU Action ksud artifact (both LKMs are embedded), and strip it before staging.",
             )
         }
         logger.lifecycle(
@@ -235,6 +243,11 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach {
 
 tasks.matching { it.name == "preBuild" }.configureEach {
     dependsOn(verifyPayloads)
+}
+
+fun ByteArray.containsAscii(text: String): Boolean {
+    val needle = text.encodeToByteArray()
+    return indices.any { start -> start + needle.size <= size && needle.indices.all { this[start + it] == needle[it] } }
 }
 
 dependencies {
