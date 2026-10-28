@@ -16,7 +16,7 @@
     <string name="home_status_ksu_enabled">%1$s enabled</string>
     <string name="home_status_ksu_enabled_detail">Tap to open manager</string>
     <string name="home_status_noksu_enabled">Temporary root channel</string>
-    <string name="home_status_noksu_enabled_detail">KernelSU not loaded · socket channel active until reboot</string>
+    <string name="home_status_noksu_enabled_detail">MidoriSU not loaded · socket channel active until reboot</string>
     <string name="home_status_standalone">Ready</string>
     <string name="home_status_standalone_detail">Tap to execute for temporary root</string>
     <string name="home_status_next_spoofed_hint">Spoofed manager is found by signature scan (first check may be slower)</string>
@@ -72,8 +72,8 @@
     <string name="selinux_toggle_failed">Failed to toggle SELinux</string>
     <string name="ksud_load_card_title">Load ksud</string>
     <string name="su_denied_connect_hint">su not granted to this app — use the wireless debugging/Shizuku channel instead</string>
-    <string name="su_denied_hint_standalone">su not granted to this app — authorize in KernelSU</string>
-    <string name="ksud_load_card_detail">Upgrade the temp channel to KernelSU (works in permissive session)</string>
+    <string name="su_denied_hint_standalone">su not granted to this app — authorize in MidoriSU</string>
+    <string name="ksud_load_card_detail">Upgrade the temp channel to MidoriSU (works in permissive session)</string>
     <string name="ksud_load_title">Load ksud</string>
     <string name="ksud_load_summary">Pick a ksud source, then run the late-load upgrade</string>
     <string name="ksud_load_log_summary">Loading · live log</string>
@@ -85,13 +85,13 @@
     <string name="ksud_source_file_desc">Overrides /data/local/tmp/ksud</string>
     <string name="ksud_load_confirm">Load</string>
     <string name="ksud_load_loading">Loading…</string>
-    <string name="ksud_load_success">KernelSU loaded</string>
+    <string name="ksud_load_success">MidoriSU loaded</string>
     <string name="ksud_load_failed">ksud load failed: %1$s</string>
     <string name="ksud_file_read_failed">Cannot read the selected ksud file</string>
     <string name="selinux_noksu_permissive_locked">Switching to enforcing is disabled in temporary channel mode</string>
 
     <!-- Execution params (More page) -->
-    <string name="section_ksu_mode">KernelSU mode</string>
+    <string name="section_ksu_mode">MidoriSU mode</string>
     <string name="section_exploit_params">Exploit</string>
     <string name="section_debug">Debug</string>
     <string name="section_app_gates">Preflight &amp; timeouts</string>
@@ -154,17 +154,16 @@
     <string name="settings_exec_state_shizuku">Current: Shizuku</string>
     <string name="settings_exec_busy_hint">Run in progress, switching disabled</string>
     <string name="settings_scheme">Root method</string>
-    <string name="settings_scheme_summary_default">Loads KernelSU directly</string>
+    <string name="settings_scheme_summary_default">Loads MidoriSU directly</string>
     <string name="settings_scheme_summary_standalone">No companion/debugging/ADB — run from the home card</string>
     <string name="settings_scheme_default">Ghostlock</string>
     <string name="settings_scheme_standalone">DirtyFrag</string>
     <string name="settings_scheme_default_notice">This scheme was fixed in the Samsung October 2026 patch; if your device is unpatched, you can try it, or adjust the offsets in More settings</string>
-    <string name="settings_ksud_variant">KernelSU version</string>
-    <string name="settings_ksud_variant_default">KernelSU (3.3.1 · 32680)</string>
-    <string name="settings_ksud_variant_next">KernelSU-Next (3.4.2 · 33355)</string>
-    <string name="settings_ksud_variant_summary">Takes effect on the next run, reboot to replace the kernel</string>
-    <string name="settings_ksud_variant_locked">Switchable only on DirtyFrag (standalone)</string>
-    <string name="settings_ksud_variant_active">Root active · reboot to switch</string>
+    <string name="settings_midori_lkm">MidoriSU LKM</string>
+    <string name="settings_midori_lkm_kow">KOWSU</string>
+    <string name="settings_midori_lkm_xx">XXKSU</string>
+    <string name="settings_midori_lkm_summary">Uses the LKM embedded in ksud; reboot if MidoriSU is already loaded</string>
+    <string name="settings_midori_lkm_active">Root active · reboot before switching LKM</string>
     <string name="settings_pin_probe">Page-cache write check</string>
     <string name="settings_pin_probe_summary">Checks whether page-cache writes still work on this device; runs are blocked when unsupported (few ms)</string>
     <string name="settings_pin_probe_running">Checking…</string>
@@ -193,10 +192,10 @@
     <string name="tcp_port_saved">Port saved: %1$d, takes effect after activation</string>
     <string name="home_no_wifi_ready_detail">TCP mode ready, tap to reconnect</string>
     <string name="home_no_wifi_waiting_detail">TCP mode on, activates after the next wireless-debugging connection</string>
-    <string name="settings_skip_ksu">Skip KernelSU loading</string>
+    <string name="settings_skip_ksu">Skip MidoriSU loading</string>
     <string name="settings_skip_ksu_summary">When on, ksud is not loaded and the exploit restores enforcing itself, root stays via the temp socket (requires an adapted payload)</string>
     <string name="settings_allow_shell">Allow shell su</string>
-    <string name="settings_allow_shell_summary">Add the shell user to the KernelSU allowlist when it loads, so adb shell can su directly</string>
+    <string name="settings_allow_shell_summary">Add the shell user to the MidoriSU allowlist when it loads, so adb shell can su directly</string>
     <string name="settings_auto_soft_reboot">Auto soft reboot</string>
     <string name="settings_auto_soft_reboot_summary">Soft reboot after root so installed modules take effect</string>
     <string name="settings_local_payload">Use local payload</string>
@@ -226,9 +225,9 @@
     <string name="about_title">About GhostSam</string>
     <string name="about_body">A temporary root tool for Samsung devices (mainly the S26 series)\nCVE-2026-43284/CVE-2026-43499 (GhostLock)</string>
     <string name="about_credit">Built by %1$s · %2$s</string>
-    <string name="about_ksu_title">KernelSU</string>
+    <string name="about_ksu_title">MidoriSU</string>
     <string name="about_ksu_description">A kernel-based root solution for Android</string>
-    <string name="about_ksunext_title">KernelSU-Next</string>
+    <string name="about_ksunext_title">MidoriSU-Next</string>
     <string name="about_ksunext_description">An advanced Kernel based root solution for Android</string>
     <string name="about_s26_title">Ghostlock S26</string>
     <string name="about_s26_description">Ghostlock S26 exploit repository</string>
@@ -288,7 +287,7 @@
     <string name="exploit_done">Done</string>
 
     <string name="exploit_fail_shizuku">No privileged channel (wireless debugging not connected / Shizuku not granted)</string>
-    <string name="exploit_fail_manager_missing">KernelSU Manager is not installed, install it before running</string>
+    <string name="exploit_fail_manager_missing">MidoriSU Manager is not installed, install it before running</string>
     <string name="exploit_fail_already_root">Root already granted, exploit not needed</string>
     <string name="exploit_fail_boot_claimed">Exploit already ran on this boot, reboot to retry</string>
     <string name="exploit_fail_uptime">Boot time below the minimum uptime</string>
@@ -308,14 +307,14 @@
     <string name="standalone_log_build_unlisted">build %1$s not listed for %2$s (%3$d recorded)</string>
     <string name="exploit_fail_timeout">Exploit timed out</string>
     <string name="exploit_fail_stall">Exploit stalled (no new output)</string>
-    <string name="exploit_fail_verify">KernelSU verification timed out</string>
+    <string name="exploit_fail_verify">MidoriSU verification timed out</string>
     <string name="exploit_fail_unknown">Unexpected failure</string>
 
     <!-- Exploit run log (app-side, i18n; the [*]/[+]/[-] prefixes live in code) -->
     <string name="exploit_log_channel_ready">privileged channel ready: %1$s</string>
     <string name="exploit_log_shizuku_missing">No privileged channel: wireless debugging not connected and Shizuku not granted</string>
-    <string name="exploit_log_manager_present">KernelSU Manager present</string>
-    <string name="exploit_log_manager_missing">KernelSU Manager not installed (%1$s), install it first</string>
+    <string name="exploit_log_manager_present">MidoriSU Manager present</string>
+    <string name="exploit_log_manager_missing">MidoriSU Manager not installed (%1$s), install it first</string>
     <string name="exploit_log_ksud_variant">ksud version: %1$s</string>
     <string name="exploit_log_root_clean">root check clean</string>
     <string name="exploit_log_already_root">Root already granted, exploit not needed</string>
@@ -355,7 +354,7 @@
     <string name="exploit_log_clear_timeout">clearing old logs timed out, continuing</string>
     <string name="exploit_log_clear_skip">skipped clearing old logs (%1$s)</string>
     <string name="exploit_log_custom_line">custom line written (%1$s)</string>
-    <string name="exploit_log_recheck">exit=1, re-checking KernelSU</string>
+    <string name="exploit_log_recheck">exit=1, re-checking MidoriSU</string>
     <string name="exploit_log_fail_ksud">exploit exit 1 (slide/ksud failed)</string>
     <string name="exploit_log_fail_unsupported">Device/firmware not supported (no kernel line)</string>
     <string name="exploit_log_fail_walk_early">Walk failed early, reboot and wait ~1 min</string>
@@ -364,9 +363,9 @@
     <string name="exploit_log_exit_via_finish_marker">payload completed, continuing with independent verification</string>
     <string name="exploit_log_fail_stall">Exploit stalled %1$ds (no new output)</string>
     <string name="exploit_log_fail_timeout">Exploit timed out after %1$ds</string>
-    <string name="exploit_log_fail_verify">KernelSU verification timed out (module not loaded or su silent)</string>
+    <string name="exploit_log_fail_verify">MidoriSU verification timed out (module not loaded or su silent)</string>
     <string name="exploit_log_verify_wait">verifying: module not loaded / su unavailable (%1$ds)</string>
-    <string name="exploit_log_verified">KernelSU verified (uid=0)</string>
+    <string name="exploit_log_verified">MidoriSU verified (uid=0)</string>
     <string name="exploit_log_verified_noksu">Temp root channel verified (permissive session)</string>
     <string name="exploit_log_noksu_hint">3rd-party terminals (Termux…): /data/local/tmp/cve-2026-43499-root (-c cmd / interactive)</string>
     <string name="exploit_log_completed">Completed in %1$.1fs · exit 0</string>

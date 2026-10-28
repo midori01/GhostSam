@@ -1,0 +1,290 @@
+name: Build GhostSam App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "exploit/**"
+      - ".github/workflows/build-app.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ghostsam-app-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MIDORI_REPO: midori01/KernelSU
+  MIDORI_WORKFLOW: build-manager.yml
+
+jobs:
+  build-dfr-lkms:
+    name: Build DirtyFrag LKM · ${{ matrix.kmi }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ylarod/ddk-min:${{ matrix.kmi }}-20260828
+      options: --privileged
+    strategy:
+      fail-fast: true
+      matrix:
+        kmi:
+          - android12-5.10
+          - android13-5.10
+          - android13-5.15
+          - android14-5.15
+          - android14-6.1
+          - android15-6.6
+          - android16-6.12
+          - android17-6.18
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build dfr_lkm
+        run: |
+          make -C exploit/src/chains/dirtyfrag/lkm KDIR="$KDIR"
+          artifact_dir="$GITHUB_WORKSPACE/out"
+          mkdir -p "$artifact_dir"
+          install -D -m 0644 exploit/src/chains/dirtyfrag/lkm/dfr_lkm.ko \
+            "$artifact_dir/dfr_lkm-${{ matrix.kmi }}.ko"
+          file "$artifact_dir/dfr_lkm-${{ matrix.kmi }}.ko"
+
+      - name: Upload DirtyFrag LKM
+        uses: actions/upload-artifact@v7
+        with:
+          name: dfr-lkm-${{ matrix.kmi }}
+          path: out/dfr_lkm-${{ matrix.kmi }}.ko
+          if-no-files-found: error
+
+  build-app:
+    name: Build app with latest MidoriSU inputs
+    runs-on: ubuntu-latest
+    needs: build-dfr-lkms
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Require MidoriSU artifact token
+        env:
+          MIDORISU_TOKEN: ${{ secrets.MIDORISU_TOKEN }}
+        run: |
+          if [ -z "$MIDORISU_TOKEN" ]; then
+            echo "::error::Configure MIDORISU_TOKEN with read access to midori01/KernelSU Actions artifacts"
+            exit 1
+          fi
+
+      - name: Resolve latest successful MidoriSU build
+        id: midori
+        env:
+          GH_TOKEN: ${{ secrets.MIDORISU_TOKEN }}
+        run: |
+          set -euo pipefail
+          run_id=$(gh api \
+            "repos/${MIDORI_REPO}/actions/workflows/${MIDORI_WORKFLOW}/runs?branch=main&per_page=30" \
+            --jq '.workflow_runs[] | select(.status == "completed" and .conclusion == "success") | .id' \
+            | head -n1)
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "MidoriSU run: $run_id"
+
+      - name: Download MidoriSU ksud
+        uses: dawidd6/action-download-artifact@v27
+        with:
+          github_token: ${{ secrets.MIDORISU_TOKEN }}
+          repo: ${{ env.MIDORI_REPO }}
+          workflow: ${{ env.MIDORI_WORKFLOW }}
+          run_id: ${{ steps.midori.outputs.run_id }}
+          name: ksud-aarch64-linux-android
+          path: midorisu-actions/ksud
+          if_no_artifact_found: fail
+          use_unzip: true
+
+      - name: Download MidoriSU KOWSU LKMs
+        uses: dawidd6/action-download-artifact@v27
+        with:
+          github_token: ${{ secrets.MIDORISU_TOKEN }}
+          repo: ${{ env.MIDORI_REPO }}
+          workflow: ${{ env.MIDORI_WORKFLOW }}
+          run_id: ${{ steps.midori.outputs.run_id }}
+          name: ^aarch64-android.*-lkm$
+          name_is_regexp: true
+          merge_multiple: true
+          path: midorisu-actions/kow
+          if_no_artifact_found: fail
+          use_unzip: true
+
+      - name: Download MidoriSU XXKSU LKMs
+        uses: dawidd6/action-download-artifact@v27
+        with:
+          github_token: ${{ secrets.MIDORISU_TOKEN }}
+          repo: ${{ env.MIDORI_REPO }}
+          workflow: ${{ env.MIDORI_WORKFLOW }}
+          run_id: ${{ steps.midori.outputs.run_id }}
+          name: ^xx-android.*-lkm$
+          name_is_regexp: true
+          merge_multiple: true
+          path: midorisu-actions/xx
+          if_no_artifact_found: fail
+          use_unzip: true
+
+      - name: Stage and validate MidoriSU binaries
+        run: |
+          set -euo pipefail
+          ksud=$(find midorisu-actions/ksud -type f -name ksud -print -quit)
+          test -n "$ksud"
+          chmod 0755 "$ksud"
+          readelf -h "$ksud" | grep -q 'Machine:.*AArch64'
+          strings "$ksud" | grep -Eq '[0-9]{4}\.[0-9]{2}\.[0-9]{2} \([0-9]+\)'
+          test "$(strings "$ksud" | grep -Eo '(xx-)?android[0-9]+-[0-9]+\.[0-9]+_kernelsu\.ko' \
+            | sort -u | wc -l)" -eq 16
+
+          test "$(find midorisu-actions/kow -type f -name '*_kernelsu.ko' | wc -l)" -eq 8
+          test "$(find midorisu-actions/xx -type f -name 'xx-*_kernelsu.ko' | wc -l)" -eq 8
+          find midorisu-actions/kow midorisu-actions/xx -type f -name '*.ko' -print0 \
+            | xargs -0 file | grep -q 'ARM aarch64'
+
+          mkdir -p midorisu-staged/kow midorisu-staged/xx
+          find midorisu-actions/kow -type f -name "*_kernelsu.ko" -exec cp -t midorisu-staged/kow {} +
+          find midorisu-actions/xx -type f -name "xx-*_kernelsu.ko" -exec cp -t midorisu-staged/xx {} +
+          install -m 0755 "$ksud" midorisu-staged/ksud
+          install -m 0755 "$ksud" app/app/src/main/assets/payloads/ksud/ksud
+          sha256sum "$ksud"
+
+      - name: Collect rebuilt GhostSam DirtyFrag LKMs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dfr-lkm-*
+          path: built-dfr-lkms
+          merge-multiple: true
+
+      - name: Stage GhostSam DirtyFrag LKMs
+        run: |
+          set -euo pipefail
+          test "$(find built-dfr-lkms -type f -name 'dfr_lkm-*.ko' | wc -l)" -eq 8
+          install -d app/app/src/main/assets/payloads/dirtyfrag
+          install -m 0644 built-dfr-lkms/dfr_lkm-*.ko \
+            app/app/src/main/assets/payloads/dirtyfrag/
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform and NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install "platforms;android-37.0" "ndk;30.0.15729638"
+
+      - name: Build GhostSam native payloads
+        run: |
+          set -euo pipefail
+          export ANDROID_NDK_HOME="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/ndk/30.0.15729638"
+          make -C exploit s22 s26 zf8
+          install -m 0755 exploit/build/s22/bin/cve-2026-43499 \
+            app/app/src/main/assets/payloads/s22/preload.so
+          install -m 0755 exploit/build/s22/bin/cve-2026-43499-root \
+            app/app/src/main/assets/payloads/s22/su_daemon
+          install -m 0755 exploit/build/s26/bin/preload.so \
+            app/app/src/main/assets/payloads/s26/preload.so
+          install -m 0755 exploit/build/s26/embed/su_daemon_aarch64_pie \
+            app/app/src/main/assets/payloads/s26/su_daemon
+          install -m 0755 exploit/build/zf8/bin/preload.so \
+            app/app/src/main/assets/payloads/zf8/preload.so
+          install -m 0755 exploit/build/zf8/bin/su_daemon \
+            app/app/src/main/assets/payloads/zf8/su_daemon
+          strip_bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          for f in app/app/src/main/assets/payloads/{s22,s26,zf8}/{preload.so,su_daemon}; do
+            "$strip_bin" --strip-all "$f"
+          done
+          for f in app/app/src/main/assets/payloads/{s22,s26,zf8}/su_daemon; do
+            strings "$f" | grep -q 'com.midori.supermanager'
+            strings "$f" | grep -q 'MIDORI_OPTS'
+          done
+
+      - name: Build APK
+        working-directory: app
+        run: bash ./gradlew --no-daemon --no-configuration-cache :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: GhostSam-debug-${{ github.run_number }}
+          path: app/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload MidoriSU ksud
+        uses: actions/upload-artifact@v7
+        with:
+          name: MidoriSU-ksud-${{ steps.midori.outputs.run_id }}
+          path: midorisu-staged/ksud
+          if-no-files-found: error
+
+      - name: Upload MidoriSU KOWSU LKMs
+        uses: actions/upload-artifact@v7
+        with:
+          name: MidoriSU-KOWSU-8-LKMs-${{ steps.midori.outputs.run_id }}
+          path: midorisu-staged/kow/*.ko
+          if-no-files-found: error
+
+      - name: Upload MidoriSU XXKSU LKMs
+        uses: actions/upload-artifact@v7
+        with:
+          name: MidoriSU-XXKSU-8-LKMs-${{ steps.midori.outputs.run_id }}
+          path: midorisu-staged/xx/*.ko
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish APK
+    runs-on: ubuntu-latest
+    needs: build-app
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download APK
+        uses: actions/download-artifact@v8
+        with:
+          pattern: GhostSam-debug-*
+          path: release-raw/apk
+          merge-multiple: true
+
+      - name: Prepare release APK
+        id: assets
+        run: |
+          set -euo pipefail
+          version_name=$(sed -n 's/^versionName=//p' app/version.properties | tr -d '\r')
+          tag="v${version_name}"
+          mkdir -p release-assets
+
+          apk=$(find release-raw/apk -type f -name '*.apk' -print -quit)
+          test -n "$apk"
+          install -m 0644 "$apk" \
+            "release-assets/GhostSam-${version_name}.apk"
+
+          test "$(find release-assets -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 1
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version_name" >> "$GITHUB_OUTPUT"
+          ls -lh release-assets
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.assets.outputs.tag }}
+          name: GhostSam ${{ steps.assets.outputs.version }}
+          files: release-assets/*.apk
+          fail_on_unmatched_files: true
+          make_latest: true
+          overwrite_files: true

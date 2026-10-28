@@ -86,7 +86,7 @@ private data class SummonStatusUi(
 
 @Composable
 private fun ksuManagerLabel(): String =
-    SettingsPrefs.effectiveKsudVariant(LocalContext.current).label
+    SettingsPrefs.midoriLkm(LocalContext.current).label
 
 @Composable
 private fun summonStatusUi(
@@ -256,7 +256,6 @@ internal fun SummonStatusCard(
     disconnectedDetailRes: Int,
     disconnectedDetailOverride: String? = null,
     standaloneRoute: Boolean = false,
-    nextVariant: Boolean = false,
     onClick: () -> Unit,
 ) {
     val isDark = isInDarkTheme()
@@ -346,22 +345,6 @@ internal fun SummonStatusCard(
                         fontWeight = FontWeight.Medium,
                         color = ui.colors.content.copy(alpha = 0.8f),
                     )
-                }
-            } else if (standaloneRoute || status == SummonStatus.Standalone) {
-                if (nextVariant) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp, 10.dp),
-                        contentAlignment = Alignment.BottomStart,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.home_status_next_spoofed_hint),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = ui.colors.content.copy(alpha = 0.8f),
-                        )
-                    }
                 }
             } else if (!(status == SummonStatus.Ready && ksuActive)) {
                 Box(

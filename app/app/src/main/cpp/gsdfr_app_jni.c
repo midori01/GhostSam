@@ -293,3 +293,15 @@ Java_com_snothin_ghostsam_data_exploit_GsdfrAppNative_setSoftReboot(
   (void)clazz;
   dfr_loader_set_soft_reboot(on ? 1 : 0);
 }
+
+JNIEXPORT void JNICALL
+Java_com_snothin_ghostsam_data_exploit_GsdfrAppNative_setMidoriKmi(
+    JNIEnv *env, jclass clazz, jstring jkmi) {
+  const char *kmi;
+  (void)clazz;
+  if (!jkmi) return;
+  kmi = (*env)->GetStringUTFChars(env, jkmi, NULL);
+  if (!kmi) return;
+  dfr_loader_set_midori_kmi(kmi);
+  (*env)->ReleaseStringUTFChars(env, jkmi, kmi);
+}

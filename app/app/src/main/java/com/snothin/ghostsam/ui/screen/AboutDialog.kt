@@ -148,13 +148,7 @@ internal fun AboutDialog(onDismiss: () -> Unit) {
                     icon = painterResource(R.drawable.ic_kernelsu),
                     title = stringResource(R.string.about_ksu_title),
                     description = stringResource(R.string.about_ksu_description),
-                    onClick = { uriHandler.openUri(KERNEL_SU_URL) },
-                )
-                AboutLinkRow(
-                    icon = painterResource(R.drawable.ic_kernelsu),
-                    title = stringResource(R.string.about_ksunext_title),
-                    description = stringResource(R.string.about_ksunext_description),
-                    onClick = { uriHandler.openUri(KERNEL_SU_NEXT_URL) },
+                    onClick = { uriHandler.openUri(MIDORI_SU_URL) },
                 )
                 AboutLinkRow(
                     icon = painterResource(R.drawable.ic_github),
@@ -252,8 +246,7 @@ private fun BuildTypeBadge() {
 
 private const val CREDIT_AUTHOR = "nothin"
 private const val CREDIT_DATE = "2026.10.14"
-private const val KERNEL_SU_URL = "https://github.com/tiann/KernelSU"
-private const val KERNEL_SU_NEXT_URL = "https://github.com/KernelSU-Next/KernelSU-Next"
+private const val MIDORI_SU_URL = "https://github.com/midori01/KernelSU"
 private const val GHOSTLOCK_S26_URL = "https://github.com/snothin/ghostlock-s26"
 private const val GHOSTSAM_APP_URL = "https://github.com/snothin/GhostSam"
 private const val DFREROOT_URL = "https://github.com/polygraphene/DFReroot"

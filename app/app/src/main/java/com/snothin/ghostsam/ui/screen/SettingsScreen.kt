@@ -59,19 +59,19 @@ import com.snothin.ghostsam.data.channel.ExecutionMode
 import com.snothin.ghostsam.data.channel.ExploitChannel
 import com.snothin.ghostsam.data.channel.SuController
 import com.snothin.ghostsam.data.device.KernelSuProbe
-import com.snothin.ghostsam.data.prefs.ExploitPrefs
 import com.snothin.ghostsam.data.exploit.PayloadScheme
 import com.snothin.ghostsam.data.exploit.RunState
 import com.snothin.ghostsam.data.exploit.StandaloneDfr
-import com.snothin.ghostsam.data.prefs.KsudVariant
+import com.snothin.ghostsam.data.prefs.ExploitPrefs
+import com.snothin.ghostsam.data.prefs.MidoriLkm
 import com.snothin.ghostsam.data.prefs.SettingsPrefs
 import com.snothin.ghostsam.ui.component.NumberInputDialog
 import com.snothin.ghostsam.ui.component.SectionLabel
 import com.snothin.ghostsam.ui.navigation3.LocalNavigator
 import com.snothin.ghostsam.ui.navigation3.Route
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,14 +119,11 @@ private class SettingsMainState(
     var execStatus by mutableStateOf("")
     var payloadScheme by mutableStateOf(SettingsPrefs.payloadScheme(context))
     var schemeStatus by mutableStateOf("")
-    var ksudVariant by mutableStateOf(SettingsPrefs.ksudVariant(context))
-    var ksudVariantStatus by mutableStateOf("")
+    var midoriLkm by mutableStateOf(SettingsPrefs.midoriLkm(context))
+    var kernelActivated by mutableStateOf(kernelActivatedNow(context))
+    var kernelCheckTick by mutableIntStateOf(0)
     var pinProbe by mutableStateOf(SettingsPrefs.pinProbe(context))
     var pinStatus by mutableStateOf("")
-    // Variant-switch freeze: once this boot has activated, the loaded variant cannot be
-    // swapped (late-load skips it); settings must never drift from the loaded variant.
-    var kernelActivated by mutableStateOf(false)
-    var kernelCheckTick by mutableIntStateOf(0)
 
     var stabilizeSeconds by mutableIntStateOf(SettingsPrefs.uptimeGateSeconds(context))
     var showSecondsDialog by mutableStateOf(false)
@@ -164,14 +161,10 @@ private fun SettingsMain(
     val settingsLifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(settingsLifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                state.kernelCheckTick += 1
-            }
+            if (event == Lifecycle.Event.ON_RESUME) state.kernelCheckTick += 1
         }
         settingsLifecycleOwner.lifecycle.addObserver(observer)
-        try {
-            awaitCancellation()
-        } finally {
+        try { awaitCancellation() } finally {
             settingsLifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
@@ -214,7 +207,7 @@ private fun SettingsMain(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             ThemeBlock(onOpen = { navigator.push(Route.ColorPalette) })
-            SchemeBlock(state, standaloneRoute)
+            SchemeBlock(state)
             ExecutionBlock(state, standaloneRoute, useShizuku, tcpStatusText)
             ParamsBlock(state, standaloneRoute, onOpenMore = { navigator.push(Route.More) })
             AboutBlock(onOpenAbout)
@@ -336,7 +329,6 @@ private fun LazyListScope.ThemeBlock(onOpen: () -> Unit) {
 
 private fun LazyListScope.SchemeBlock(
     state: SettingsMainState,
-    standaloneRoute: Boolean,
 ) {
     val context = state.context
     item { SectionLabel(stringResource(R.string.section_scheme)) }
@@ -392,55 +384,36 @@ private fun LazyListScope.SchemeBlock(
                     color = MiuixTheme.colorScheme.onBackgroundVariant,
                 )
             }
-            if (state.ksudVariantStatus.isNotEmpty()) {
-                Text(
-                    text = state.ksudVariantStatus,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                )
-            }
             OverlayDropdownPreference(
-                title = stringResource(R.string.settings_ksud_variant),
+                title = stringResource(R.string.settings_midori_lkm),
                 summary = stringResource(
-                    when {
-                        !standaloneRoute -> R.string.settings_ksud_variant_locked
-                        state.kernelActivated -> R.string.settings_ksud_variant_active
-                        else -> R.string.settings_ksud_variant_summary
-                    },
+                    if (state.kernelActivated) R.string.settings_midori_lkm_active
+                    else R.string.settings_midori_lkm_summary,
                 ),
                 items = listOf(
-                    stringResource(R.string.settings_ksud_variant_default),
-                    stringResource(R.string.settings_ksud_variant_next),
+                    stringResource(R.string.settings_midori_lkm_xx),
+                    stringResource(R.string.settings_midori_lkm_kow),
                 ),
                 startAction = {
                     Icon(
                         Icons.Rounded.Memory,
                         modifier = Modifier.padding(end = 6.dp),
-                        contentDescription = stringResource(R.string.settings_ksud_variant),
+                        contentDescription = stringResource(R.string.settings_midori_lkm),
                         tint = MiuixTheme.colorScheme.onBackground,
                     )
                 },
-                selectedIndex = (if (standaloneRoute) state.ksudVariant else KsudVariant.Default)
-                    .ordinal.coerceIn(0, KsudVariant.entries.size - 1),
+                selectedIndex = state.midoriLkm.ordinal
+                    .coerceIn(0, MidoriLkm.entries.size - 1),
                 onSelectedIndexChange = { index ->
-                    when {
-                        RunState.exploitActive -> {
-                            state.ksudVariantStatus = context.getString(R.string.settings_exec_busy_hint)
-                        }
-                        kernelActivatedNow(context) -> {
-                            state.kernelActivated = true
-                            state.ksudVariantStatus = context.getString(R.string.settings_ksud_variant_active)
-                        }
-                        else -> {
-                            val next = KsudVariant.entries[index]
-                            SettingsPrefs.setKsudVariant(context, next)
-                            state.ksudVariant = next
-                            state.ksudVariantStatus = ""
-                        }
+                    if (RunState.exploitActive) {
+                        state.schemeStatus = context.getString(R.string.settings_exec_busy_hint)
+                    } else {
+                        val next = MidoriLkm.entries[index]
+                        SettingsPrefs.setMidoriLkm(context, next)
+                        state.midoriLkm = next
                     }
                 },
-                enabled = standaloneRoute && !state.kernelActivated,
+                enabled = !RunState.exploitActive && !state.kernelActivated,
             )
             if (state.payloadScheme != PayloadScheme.Default) {
                 if (state.pinStatus.isNotEmpty()) {

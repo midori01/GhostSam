@@ -71,7 +71,7 @@ import com.snothin.ghostsam.data.exploit.ExploitViewModel
 import com.snothin.ghostsam.data.exploit.PayloadScheme
 import com.snothin.ghostsam.data.exploit.isRunning
 import com.snothin.ghostsam.data.device.KernelSuProbe
-import com.snothin.ghostsam.data.prefs.KsudVariant
+
 import com.snothin.ghostsam.data.prefs.PayloadProfile
 import com.snothin.ghostsam.data.prefs.PayloadProfileKind
 import com.snothin.ghostsam.data.prefs.PayloadProfileStore
@@ -168,13 +168,6 @@ private fun HomeMiuix(
     var payloadScheme by remember { mutableStateOf(SettingsPrefs.payloadScheme(context)) }
     LaunchedEffect(Unit) {
         SettingsPrefs.payloadSchemeFlow.drop(1).collect { payloadScheme = it }
-    }
-    var ksudVariant by remember { mutableStateOf(SettingsPrefs.ksudVariant(context)) }
-    LaunchedEffect(Unit) {
-        SettingsPrefs.ksudVariantFlow.drop(1).collect { ksudVariant = it }
-    }
-    val nextVariant = remember(payloadScheme, ksudVariant) {
-        SettingsPrefs.effectiveKsudVariant(context) == KsudVariant.Next
     }
     val payloadRouteKind =
         if (payloadScheme == PayloadScheme.DfrStandalone) {
@@ -397,7 +390,6 @@ private fun HomeMiuix(
                         null
                     },
                     standaloneRoute = payloadScheme == PayloadScheme.DfrStandalone,
-                    nextVariant = nextVariant,
                     onClick = { onStatusCardClick() },
                 )
             }

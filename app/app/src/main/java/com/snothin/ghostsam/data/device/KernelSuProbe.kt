@@ -1,157 +1,18 @@
 package com.snothin.ghostsam.data.device
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.util.Log
 import java.io.File
-import java.security.MessageDigest
-import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 import com.snothin.ghostsam.data.channel.ExploitChannel
 import com.snothin.ghostsam.data.channel.SuController
 import com.snothin.ghostsam.data.prefs.ExploitPrefs
-import com.snothin.ghostsam.data.prefs.KsudVariant
-import com.snothin.ghostsam.data.prefs.SettingsPrefs
 
-/** KernelSU activation probe. A Shizuku grant != root; on Samsung, file probes alone are unreliable
- *  (/sys/module hidden; app uid cannot read /proc/modules) - prefer the channel probe once ready. */
+/** MidoriSU activation probe. A Shizuku grant != root; on Samsung, file probes alone are
+ *  unreliable (/sys/module hidden; app uid cannot read /proc/modules) - prefer the channel
+ *  probe once ready. MidoriSU keeps the KernelSU driver and module name internally. */
 object KernelSuProbe {
-    private const val PACKAGE_KERNELSU = "me.weishu.kernelsu"
+    private const val PACKAGE_MIDORISU = "com.midori.supermanager"
 
-    private const val PACKAGE_KERNELSU_NEXT = "com.rifsxd.ksunext"
-
-    /** KernelSU-Next manager signing-cert SHA-256 (= kernel Kbuild KSU_NEXT_MANAGER_HASH): normal and
-     *  -spoofed share the cert while spoofed names are random - the cert is the only stable identifier. */
-    private const val KSU_NEXT_MANAGER_CERT_SHA256 =
-        "79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7"
-
-    @Volatile
-    private var ksuNextCertPackages: List<String> = emptyList()
-
-    @Volatile
-    private var certScanAt = 0L
-
-    @Volatile
-    private var fullScanAt = 0L
-
-    @Volatile
-    private var cacheLoaded = false
-
-    private const val CERT_SCAN_TTL_MS = 60_000L
-
-    private const val FULL_SCAN_TTL_MS = 5 * 60_000L
-
-    private val SPOOFED_PACKAGE_RE = Regex("^[a-z]{6}\\.[a-z]{6}\\.[a-z]{6}$")
-
-    private const val CACHE_PREFS = "ksu_next_manager_cache"
-    private const val KEY_PACKAGES = "packages"
-    private const val LOG_TAG = "GhostSam"
-
-    private fun loadCache(context: Context) {
-        if (cacheLoaded) return
-        cacheLoaded = true
-        runCatching {
-            val raw = context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_PACKAGES, null) ?: return
-            val cached = raw.split(',').filter { it.isNotBlank() }
-            if (cached.isNotEmpty()) {
-                ksuNextCertPackages = (cached + ksuNextCertPackages).distinct()
-                    .sortedBy { if (it == PACKAGE_KERNELSU_NEXT) 0 else 1 }
-            }
-        }
-    }
-
-    private fun persistCache(context: Context) {
-        runCatching {
-            context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit()
-                .putString(KEY_PACKAGES, ksuNextCertPackages.joinToString(","))
-                .apply()
-        }
-    }
-
-    private fun refreshCertPackages(context: Context) {
-        if (SettingsPrefs.effectiveKsudVariant(context) != KsudVariant.Next) return
-        loadCache(context)
-        if (managerPackageCandidates(context).any { launchIntentVisible(context, it) }) return
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (now - certScanAt < CERT_SCAN_TTL_MS) return
-        certScanAt = now
-        runCatching {
-            val started = android.os.SystemClock.elapsedRealtime()
-            val pm = context.packageManager
-            val resolved = pm.queryIntentActivities(
-                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
-                0,
-            )
-            val packages = resolved.map { it.activityInfo.packageName }.distinct()
-            val spoofCandidates = packages.filter { SPOOFED_PACKAGE_RE.matches(it) }
-            var discovered = certMatches(pm, spoofCandidates)
-            var fullRan = false
-            if (discovered.isEmpty() && now - fullScanAt >= FULL_SCAN_TTL_MS) {
-                fullScanAt = now
-                fullRan = true
-                discovered = certMatches(pm, packages)
-            }
-            if (discovered.isNotEmpty()) {
-                ksuNextCertPackages = (discovered + ksuNextCertPackages).distinct()
-                    .sortedBy { if (it == PACKAGE_KERNELSU_NEXT) 0 else 1 }
-                persistCache(context)
-            } else if (fullRan) {
-                ksuNextCertPackages = emptyList()
-                persistCache(context)
-            }
-            Log.i(
-                LOG_TAG,
-                "ksuNext manager scan: launcher=${packages.size} prefilter=${spoofCandidates.size} " +
-                    "full=$fullRan found=${discovered.size} ms=${android.os.SystemClock.elapsedRealtime() - started}",
-            )
-        }
-    }
-
-    private fun certMatches(pm: PackageManager, packages: List<String>): List<String> {
-        if (packages.isEmpty()) return emptyList()
-        val pool = Executors.newFixedThreadPool(minOf(4, packages.size))
-        return try {
-            pool.invokeAll(packages.map { pkg -> Callable<String?> { certMatched(pm, pkg) } })
-                .mapNotNull { runCatching { it.get() }.getOrNull() }
-        } finally {
-            pool.shutdown()
-        }
-    }
-
-    private fun certMatched(pm: PackageManager, pkg: String): String? {
-        val info = runCatching {
-            pm.getPackageInfo(
-                pkg,
-                PackageManager.PackageInfoFlags.of(
-                    PackageManager.GET_SIGNING_CERTIFICATES.toLong(),
-                ),
-            )
-        }.getOrNull() ?: return null
-        val signers = info.signingInfo?.apkContentsSigners ?: return null
-        val matched = signers.any { signer ->
-            MessageDigest.getInstance("SHA-256")
-                .digest(signer.toByteArray())
-                .toSha256Hex() == KSU_NEXT_MANAGER_CERT_SHA256
-        }
-        return if (matched) pkg else null
-    }
-
-    private fun ByteArray.toSha256Hex(): String =
-        joinToString("") { "%02x".format(it.toInt() and 0xFF) }
-
-    /** Manager package candidates strictly by effective variant (uapi is not interchangeable;
-     *  a cross-variant fallback lands the user on a manager for another kernel). */
-    fun managerPackageCandidates(context: Context): List<String> {
-        loadCache(context)
-        return when (SettingsPrefs.effectiveKsudVariant(context)) {
-            KsudVariant.Default -> listOf(PACKAGE_KERNELSU)
-            KsudVariant.Next ->
-                if (PACKAGE_KERNELSU_NEXT in ksuNextCertPackages) ksuNextCertPackages
-                else ksuNextCertPackages + PACKAGE_KERNELSU_NEXT
-        }
-    }
+    fun managerPackageCandidates(context: Context): List<String> = listOf(PACKAGE_MIDORISU)
 
     fun preferredManagerPackage(context: Context): String {
         val candidates = managerPackageCandidates(context)
@@ -170,11 +31,7 @@ object KernelSuProbe {
     fun isManagerInstalled(context: Context): Boolean =
         managerPackageCandidates(context).any { launchIntentVisible(context, it) }
 
-    fun probeManagerInstalled(context: Context): Boolean {
-        if (isManagerInstalled(context)) return true
-        refreshCertPackages(context)
-        return isManagerInstalled(context)
-    }
+    fun probeManagerInstalled(context: Context): Boolean = isManagerInstalled(context)
 
     private fun launchIntentVisible(context: Context, pkg: String): Boolean = runCatching {
         context.packageManager.getLaunchIntentForPackage(pkg) != null
